@@ -43,10 +43,14 @@ jobs:
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
+      - name: Verify build output
+        run: ls -la ./dist
+
       - name: Upload build files
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: ./dist
+          name: github-pages
 
       - name: Deploy
         id: deployment
