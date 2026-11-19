@@ -158,26 +158,7 @@ export function App() {
     const legacyV2 = loadSavedJson<CompartmentSlot[] | null>(LEGACY_SLOTS_KEY_V2, null);
     // Preserve the user's first four compartment definitions when migrating
     // the old 13-compartment app to this four-servo ESP32.
-/*    const source = savedFour?.length >= 4
-      ? savedFour
-      : savedOld?.length >= 4
-        ? savedOld
-        : legacyV2?.length >= 4
-          ? legacyV2
-          : DEFAULT_SLOTS;
-    return source.slice(0, 4).map((slot, index) => ({
-      ...slot,
-      slot: index + 1,
-      courseDays: Math.min(365, Math.max(1, Number(slot.courseDays) || 365)),
-      dispenseTimes: Array.isArray(slot.dispenseTimes) && slot.dispenseTimes.length
-        ? slot.dispenseTimes.slice(0, 8)
-        : ['08:00'],
-      days: Array.isArray(slot.days) && slot.days.length === 7 ? slot.days : [...ALL_DAYS],
-      startDateKey: slot.startDateKey || initialTomorrowKey,
-    })); 
-*/ 
-// Changed above code to below line
-// Changing to - 1
+
     const source: CompartmentSlot[] =
       savedFour && savedFour.length >= 4
         ? savedFour
@@ -201,7 +182,7 @@ export function App() {
     }));
 
     const dummySlots: CompartmentSlot[] = Array.from(
-      { length: 9 },
+      { length: 8 },
       (_, index) => ({
         slot: index + 5,
         medicationName: 'Not in Use',
@@ -217,7 +198,7 @@ export function App() {
 
     return [...activeSlots, ...dummySlots];
 
-// Changing to - 1
+
   });
   const [delays, setDelays] = useState<DoseDelay[]>(() =>
     loadSavedJson<DoseDelay[]>(STORAGE_KEYS.delays, []),
@@ -555,10 +536,6 @@ export function App() {
     }
     try {
 
-// Changing - 3 
-//      for (const slot of slots) {
-//        await hardwareTransport.sendCommand(buildEsp32PlanCommand(slot));
-//      }
       for (const slot of slots.filter((slot) => slot.slot <= 4)) {
         await hardwareTransport.sendCommand(buildEsp32PlanCommand(slot));
       }
@@ -659,14 +636,12 @@ export function App() {
         return;
       }
 
-// Changing - 2
       if (!Number.isInteger(slotNumber) || slotNumber < 1 || slotNumber > 4) {
         const message = `Compartment ${slotNumber} is not connected to a physical servo.`;
         setConnectionError(message);
         appendPacketLog('error', message);
         return;
       }
-// Changing - 2
 
       const targetSlot = slots.find((s) => s.slot === slotNumber);
       if (!targetSlot) return;
@@ -981,14 +956,25 @@ export function App() {
   };
 
   const lowStockCount = useMemo(
-    () => slots.filter((s) => s.stockLevel === 'low' || s.stockLevel === 'empty').length,
+    () =>
+      slots.filter(
+        (s) =>
+          s.slot >= 1 &&
+          s.slot <= 4 &&
+          (s.stockLevel === 'low' || s.stockLevel === 'empty'),
+      ).length,
     [slots],
   );
 
   const queuedForTomorrowCount = useMemo(
     () =>
       slots.filter(
-        (s) => s.enabled && s.startDateKey && s.startDateKey > clockSnapshot.dateKey,
+        (s) =>
+          s.slot >= 1 &&
+          s.slot <= 4 &&
+          s.enabled &&
+          s.startDateKey &&
+          s.startDateKey > clockSnapshot.dateKey,
       ).length,
     [slots, clockSnapshot.dateKey],
   );
@@ -1017,8 +1003,8 @@ export function App() {
           >
             {(
               [
-                { id: 'overview', label: 'Control Center' },
-                { id: 'dispenser', label: '4 Servos' },
+                { id: 'overview', label: 'Dashboard' },
+                { id: 'dispenser', label: 'Dispenser Management' },
                 { id: 'caregiver', label: 'Caregiver Log' },
               ] as const
             ).map((item) => (
@@ -1064,8 +1050,8 @@ export function App() {
         <div className="md:hidden border-t border-slate-100 px-4 py-2 flex items-center gap-4 overflow-x-auto text-xs font-medium">
           {(
             [
-              { id: 'overview', label: 'Control Center' },
-              { id: 'dispenser', label: '4 Servos' },
+              { id: 'overview', label: 'Dashboard' },
+              { id: 'dispenser', label: 'Dispenser Management' },
               { id: 'caregiver', label: 'Caregiver Log' },
             ] as const
           ).map((item) => (
@@ -1089,6 +1075,14 @@ export function App() {
         {activeTab === 'overview' && (
           <>
             <TodayAtAGlance
+              telemetry={telemetry}
+              timezone={timezone}
+              onChangeTimezone={handleTimezoneChange}
+              onSyncClock={() => syncClockToDevice(timezone)}
+              isSyncingClock={isSyncingClock}
+              autoSyncClock={autoSyncClock}
+              onToggleAutoSyncClock={() => setAutoSyncClock((prev) => !prev)}
+              onToggle24Hour={() => setUse24Hour((prev) => !prev)}
               todayDoses={todayDoses}
               dishSensor={dishSensor}
               dishRefreshMs={dishRefreshMs}
@@ -1107,34 +1101,9 @@ export function App() {
               lowStockCount={lowStockCount}
               queuedForTomorrowCount={queuedForTomorrowCount}
             />
-
-            <DeviceManager
-              transport={transport}
-              telemetry={telemetry}
-              customBleServiceUuid={customBleServiceUuid}
-              onChangeCustomBleServiceUuid={setCustomBleServiceUuid}
-              timezone={timezone}
-              onChangeTimezone={handleTimezoneChange}
-              use24Hour={use24Hour}
-              onToggle24Hour={() => setUse24Hour((prev) => !prev)}
-              autoSyncClock={autoSyncClock}
-              onToggleAutoSyncClock={() => setAutoSyncClock((prev) => !prev)}
-              clockSnapshot={clockSnapshot}
-              packetLogs={packetLogs}
-              onClearLogs={() => setPacketLogs([])}
-              onConnectBle={handleConnectBle}
-              onConnectSerial={handleConnectSerial}
-              onDisconnect={handleDisconnect}
-              onSyncClock={() => syncClockToDevice(timezone)}
-              onSyncPlans={handleSyncPlans}
-              onPingDevice={handlePingDevice}
-              onSendRawCommand={handleSendRawCommand}
-              connectionError={connectionError}
-              isConnecting={isConnecting}
-              isSyncingClock={isSyncingClock}
-            />
-
+            
             <DispenserControl
+              viewMode="dashboard"
               slots={slots}
               delays={delays}
               transport={transport}
@@ -1144,6 +1113,25 @@ export function App() {
               onDropPill={(slotNum) => handleDropPill(slotNum, 'manual')}
               onUpdateSlot={handleUpdateSlot}
             />
+
+            <DeviceManager
+              transport={transport}
+              telemetry={telemetry}
+              customBleServiceUuid={customBleServiceUuid}
+              onChangeCustomBleServiceUuid={setCustomBleServiceUuid}
+              packetLogs={packetLogs}
+              onClearLogs={() => setPacketLogs([])}
+              onConnectBle={handleConnectBle}
+              onConnectSerial={handleConnectSerial}
+              onDisconnect={handleDisconnect}
+              onSyncPlans={handleSyncPlans}
+              onPingDevice={handlePingDevice}
+              onSendRawCommand={handleSendRawCommand}
+              connectionError={connectionError}
+              isConnecting={isConnecting}
+            />
+
+
 
             <CaregiverDashboard
               logs={adherenceLogs}
@@ -1158,6 +1146,7 @@ export function App() {
 
         {activeTab === 'dispenser' && (
           <DispenserControl
+            viewMode="management"
             slots={slots}
             delays={delays}
             transport={transport}

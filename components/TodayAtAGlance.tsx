@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { DeviceClock } from './DeviceClock';
 import {
   ArrowDownCircle,
   Clock,
@@ -11,6 +12,7 @@ import {
 } from 'lucide-react';
 import type {
   DishSensorState,
+  HardwareTelemetry,
   TodayDoseItem,
   TransportKind,
 } from '../types/dispenser';
@@ -20,7 +22,16 @@ import {
   type TimezoneClockSnapshot,
 } from '../utils/timezone';
 
+
 interface TodayAtAGlanceProps {
+  telemetry: HardwareTelemetry;
+  timezone: string;
+  onChangeTimezone: (tz: string) => void;
+  onSyncClock: () => Promise<void>;
+  isSyncingClock: boolean;
+  autoSyncClock: boolean;
+  onToggleAutoSyncClock: () => void;
+  onToggle24Hour: () => void;
   todayDoses: TodayDoseItem[];
   dishSensor: DishSensorState;
   dishRefreshMs: number;
@@ -46,6 +57,14 @@ const REFRESH_OPTIONS = [
 ];
 
 export const TodayAtAGlance: React.FC<TodayAtAGlanceProps> = ({
+  telemetry,
+  timezone,
+  onChangeTimezone,
+  onSyncClock,
+  isSyncingClock,
+  autoSyncClock,
+  onToggleAutoSyncClock,
+  onToggle24Hour,
   todayDoses,
   dishSensor,
   dishRefreshMs,
@@ -124,10 +143,10 @@ export const TodayAtAGlance: React.FC<TodayAtAGlanceProps> = ({
 
   return (
     <section className="space-y-6" aria-label="Today at a glance and dish weight sensor">
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-stretch">
         {/* Left: Today at a Glance Timeline */}
-        <div className="lg:col-span-8 bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col">
-          <div className="px-6 py-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-4">
+        <div className="xl:col-span-5 bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col">
+          <div className="px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-4">
             <div>
               <h2 className="text-lg font-bold text-slate-900 tracking-tight">
                 Today at a Glance
@@ -173,7 +192,7 @@ export const TodayAtAGlance: React.FC<TodayAtAGlanceProps> = ({
           </div>
 
           {todayDoses.length === 0 ? (
-            <div className="p-8 text-center text-sm text-slate-500 space-y-1">
+            <div className="p-5 text-center text-sm text-slate-500 space-y-1">
               <p className="font-medium text-slate-700">
                 No scheduled doses due today — zero overdue notices.
               </p>
@@ -184,7 +203,7 @@ export const TodayAtAGlance: React.FC<TodayAtAGlanceProps> = ({
               </p>
             </div>
           ) : (
-            <div className="divide-y divide-slate-100 max-h-80 overflow-y-auto">
+            <div className="divide-y divide-slate-100 max-h-48 overflow-y-auto">
               {todayDoses.map((item) => {
                 const isDropping = pendingDropSlot === item.slot;
                 const isCustomOpen = customDelayKey === item.key;
@@ -192,7 +211,7 @@ export const TodayAtAGlance: React.FC<TodayAtAGlanceProps> = ({
                 return (
                   <div
                     key={item.key}
-                    className="px-6 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/70 transition-colors"
+                    className="px-4 py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/70 transition-colors"
                   >
                     <div className="flex items-start gap-3.5 min-w-0">
                       <div className="font-mono tabular-nums text-xs font-bold text-slate-900 bg-slate-100 border border-slate-200 rounded-md px-2.5 py-1.5 shrink-0">
@@ -347,90 +366,115 @@ export const TodayAtAGlance: React.FC<TodayAtAGlanceProps> = ({
           )}
         </div>
 
-        {/* Right: Dish Weight Sensor */}
-        <div className="lg:col-span-4 bg-white border border-slate-200 rounded-xl p-6 flex flex-col justify-between">
-          <div className="space-y-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-bold text-slate-900 tracking-tight">
-                  Dish Weight Sensor
-                </h2>
-                <p className="text-sm text-slate-500 mt-0.5">
-                  HX711 load cell pill verification
-                </p>
+
+        {/* Right: Dish Weight Sensor + Device Clock */}
+
+          {/* Dish Weight Sensor Card */}
+          <div className="xl:col-span-3 bg-white border border-slate-200 rounded-xl p-5 flex flex-col justify-between">
+            <div className="space-y-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900 tracking-tight">
+                    Dish Weight Sensor
+                  </h2>
+                  <p className="text-sm text-slate-500 mt-0.5">
+                    HX711 load cell pill verification
+                  </p>
+                </div>
+                <Scale className="w-5 h-5 text-slate-400 shrink-0" aria-hidden="true" />
               </div>
-              <Scale className="w-5 h-5 text-slate-400 shrink-0" aria-hidden="true" />
+
+              <div className="py-4 border-y border-slate-100">
+                <div className="font-mono tabular-nums text-3xl font-semibold text-slate-900">
+                  {dishSensor.weightGrams !== null
+                    ? `${dishSensor.weightGrams.toFixed(2)} g`
+                    : '— g'}
+                </div>
+
+                <div className="mt-2">{renderDishBadge()}</div>
+
+                {dishSensor.lastUpdatedAt && (
+                  <p className="text-xs text-slate-400 mt-1.5 tabular-nums">
+                    Last reading:{' '}
+                    {formatIsoTimeInZone(
+                      dishSensor.lastUpdatedAt,
+                      clockSnapshot.ianaTimezone,
+                      use24Hour,
+                    )}
+                  </p>
+                )}
+              </div>
+
+              {/* Refresh frequency control */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-semibold text-slate-700">HX711 Refresh Rate</span>
+                  <span className="text-slate-500">
+                    {dishRefreshMs === 0 ? 'Push / Manual' : `Every ${dishRefreshMs / 1000}s`}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-4 gap-1 p-1 bg-slate-100 rounded-lg">
+                  {REFRESH_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.ms}
+                      type="button"
+                      onClick={() => onChangeDishRefreshMs(opt.ms)}
+                      className={`py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer whitespace-nowrap ${
+                        dishRefreshMs === opt.ms
+                          ? 'bg-white text-slate-900 shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
-            <div className="py-4 border-y border-slate-100">
-              <div className="font-mono tabular-nums text-3xl font-semibold text-slate-900">
-                {dishSensor.weightGrams !== null
-                  ? `${dishSensor.weightGrams.toFixed(2)} g`
-                  : '— g'}
-              </div>
-              <div className="mt-2">{renderDishBadge()}</div>
-              {dishSensor.lastUpdatedAt && (
-                <p className="text-xs text-slate-400 mt-1.5 tabular-nums">
-                  Last reading:{' '}
-                  {formatIsoTimeInZone(
-                    dishSensor.lastUpdatedAt,
-                    clockSnapshot.ianaTimezone,
-                    use24Hour,
-                  )}
-                </p>
-              )}
-            </div>
+            {/* Read and Tare buttons */}
+            <div className="pt-4 mt-4 border-t border-slate-100 flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => void onReadDish()}
+                disabled={!isConnected}
+                className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap"
+              >
+                <Scale className="w-3.5 h-3.5" aria-hidden="true" />
+                <span>Read Now</span>
+              </button>
 
-            {/* Refresh frequency control */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-slate-700">HX711 Refresh Rate</span>
-                <span className="text-slate-500">
-                  {dishRefreshMs === 0 ? 'Push / Manual' : `Every ${dishRefreshMs / 1000}s`}
-                </span>
-              </div>
-              <div className="grid grid-cols-4 gap-1 p-1 bg-slate-100 rounded-lg">
-                {REFRESH_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.ms}
-                    type="button"
-                    onClick={() => onChangeDishRefreshMs(opt.ms)}
-                    className={`py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer whitespace-nowrap ${
-                      dishRefreshMs === opt.ms
-                        ? 'bg-white text-slate-900 shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
+              <button
+                type="button"
+                onClick={() => void onTareDish()}
+                disabled={!isConnected || transport !== 'serial'}
+                title={transport === 'ble' ? 'Tare is supported over USB Serial only' : undefined}
+                className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap"
+              >
+                <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
+                <span>Tare Scale</span>
+              </button>
             </div>
           </div>
 
-          <div className="pt-4 mt-4 border-t border-slate-100 flex items-center gap-2.5">
-            <button
-              type="button"
-              onClick={() => void onReadDish()}
-              disabled={!isConnected}
-              className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap"
-            >
-              <Scale className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>Read Now</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => void onTareDish()}
-              disabled={!isConnected || transport !== 'serial'}
-              title={transport === 'ble' ? 'Tare is supported over USB Serial only' : undefined}
-              className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap"
-            >
-              <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>Tare Scale</span>
-            </button>
+          {/* Device Clock Card */}
+          <div className="xl:col-span-4">
+            <DeviceClock
+              telemetry={telemetry}
+              transport={transport}
+              timezone={timezone}
+              onChangeTimezone={onChangeTimezone}
+              use24Hour={use24Hour}
+              onToggle24Hour={onToggle24Hour}
+              autoSyncClock={autoSyncClock}
+              onToggleAutoSyncClock={onToggleAutoSyncClock}
+              clockSnapshot={clockSnapshot}
+              onSyncClock={onSyncClock}
+              isSyncingClock={isSyncingClock}
+            />
           </div>
         </div>
-      </div>
-    </section>
+      </section>
   );
 };

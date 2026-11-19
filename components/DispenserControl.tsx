@@ -23,6 +23,7 @@ import {
 } from '../utils/timezone';
 
 interface DispenserControlProps {
+  viewMode?: 'dashboard' | 'management';
   slots: CompartmentSlot[];
   delays: DoseDelay[];
   transport: TransportKind;
@@ -42,6 +43,7 @@ const STOCK_OPTIONS: Array<{ id: StockLevel; label: string }> = [
 ];
 
 export const DispenserControl: React.FC<DispenserControlProps> = ({
+  viewMode = 'management',
   slots,
   delays,
   transport,
@@ -107,10 +109,12 @@ export const DispenserControl: React.FC<DispenserControlProps> = ({
         <div className="px-6 py-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-4">
           <div>
             <h2 className="text-lg font-bold text-slate-900 tracking-tight">
-              13-Compartment Dispenser Control
+              {viewMode === 'dashboard'
+                ? 'Dispenser Overview'
+                : '12-Compartment Dispenser Management'}
             </h2>
             <p className="text-sm text-slate-500 mt-0.5">
-              4 active servo compartments · 9 compartments not in use · Up to 8 daily times per servo · Evaluated in {clockSnapshot.ianaTimezone} ({clockSnapshot.shortZone})
+              4 Active compartments (In Use) · 8 compartments not in use · Up to 8 daily times per servo · Evaluated in {clockSnapshot.ianaTimezone} ({clockSnapshot.shortZone})
             </p>
           </div>
 
@@ -126,7 +130,13 @@ export const DispenserControl: React.FC<DispenserControlProps> = ({
           </div>
         )}
 
-        <div className="divide-y divide-slate-100">
+          <div
+              className={
+                viewMode === 'dashboard'
+                  ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 p-4'
+                  : 'divide-y divide-slate-100'
+              }
+            >
           {slots.map((slot) => {
             const isDropping = pendingDropSlot === slot.slot;
             const isBusy = pendingDropSlot !== null;
@@ -138,14 +148,20 @@ export const DispenserControl: React.FC<DispenserControlProps> = ({
             );
 
             return (
-              <div
-                key={slot.slot}
-                className={`px-6 py-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4 ${ 
-                  isDummy
-                  ? 'bg-slate-50 opacity-60'
-                  : 'hover:bg-slate-50/70 transition-colors'
-                }`}  
-              >
+                <div
+                  key={slot.slot}
+                  className={
+                    viewMode === 'dashboard'
+                      ? `h-full rounded-xl border border-slate-200 p-4 shadow-sm ${
+                          isDummy ? 'bg-slate-50 opacity-60' : 'bg-white'
+                        }`
+                      : `px-6 py-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4 ${
+                          isDummy
+                            ? 'bg-slate-50 opacity-60'
+                            : 'hover:bg-slate-50/70 transition-colors'
+                        }`
+                  }
+                >
                 <div className="flex items-start gap-4 min-w-0">
                   <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center font-mono font-semibold text-sm text-slate-800 shrink-0 tabular-nums">
                     S{slot.slot}
@@ -246,7 +262,7 @@ export const DispenserControl: React.FC<DispenserControlProps> = ({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-                  {!isDummy && (
+                  {viewMode === 'management' && !isDummy && (
                     <>
                       {/* Stock level segmented control: Low / Medium / Full */}
                       <div
