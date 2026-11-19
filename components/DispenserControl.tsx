@@ -107,10 +107,10 @@ export const DispenserControl: React.FC<DispenserControlProps> = ({
         <div className="px-6 py-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-4">
           <div>
             <h2 className="text-lg font-bold text-slate-900 tracking-tight">
-              4-Servo Dispenser Control
+              13-Compartment Dispenser Control
             </h2>
             <p className="text-sm text-slate-500 mt-0.5">
-              One servo cycle per dispense · Up to 8 daily times per servo · Evaluated in {clockSnapshot.ianaTimezone} ({clockSnapshot.shortZone})
+              4 active servo compartments · 9 compartments not in use · Up to 8 daily times per servo · Evaluated in {clockSnapshot.ianaTimezone} ({clockSnapshot.shortZone})
             </p>
           </div>
 
@@ -130,6 +130,7 @@ export const DispenserControl: React.FC<DispenserControlProps> = ({
           {slots.map((slot) => {
             const isDropping = pendingDropSlot === slot.slot;
             const isBusy = pendingDropSlot !== null;
+            const isDummy = slot.slot > 4;
             const nextMins = getNextScheduleMinutes(slot.dispenseTimes);
             const activeDaysCount = slot.days.filter(Boolean).length;
             const slotDelays = delays.filter(
@@ -139,153 +140,173 @@ export const DispenserControl: React.FC<DispenserControlProps> = ({
             return (
               <div
                 key={slot.slot}
-                className="px-6 py-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4 hover:bg-slate-50/70 transition-colors"
+                className={`px-6 py-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4 ${ 
+                  isDummy
+                  ? 'bg-slate-50 opacity-60'
+                  : 'hover:bg-slate-50/70 transition-colors'
+                }`}  
               >
                 <div className="flex items-start gap-4 min-w-0">
                   <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center font-mono font-semibold text-sm text-slate-800 shrink-0 tabular-nums">
                     S{slot.slot}
                   </div>
-
                   <div className="min-w-0 space-y-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-sm font-bold text-slate-900 truncate">
-                        {slot.medicationName}
-                      </h3>
-                      <span className="text-xs text-slate-400" aria-hidden="true">
-                        ·
-                      </span>
-                      <span className="text-xs font-semibold text-slate-700 tabular-nums">
-                        {slot.dosagePills} {slot.dosagePills === 1 ? 'pill' : 'pills'} per dose
-                      </span>
-                      {!slot.enabled && (
-                        <>
+                    {isDummy ? (
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-500">
+                          Not in Use
+                        </h3>
+                        <p className="text-xs text-slate-400 mt-1">
+                          No servo assigned to this compartment
+                        </p>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="text-sm font-bold text-slate-900 truncate">
+                            {slot.medicationName}
+                          </h3>
                           <span className="text-xs text-slate-400" aria-hidden="true">
                             ·
                           </span>
-                          <span className="text-xs font-medium text-slate-500">Paused</span>
-                        </>
-                      )}
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                      <span className="font-mono tabular-nums font-medium text-slate-700">
-                        {slot.dispenseTimes
-                          .map((t) => formatScheduleTime(t, use24Hour))
-                          .join(', ')}
-                      </span>
-                      <span aria-hidden="true">·</span>
-                      <span className="tabular-nums">
-                        Next {formatCountdown(nextMins)}
-                      </span>
-                      <span aria-hidden="true">·</span>
-                      <span>
-                        {activeDaysCount === 7
-                          ? 'Every day'
-                          : activeDaysCount === 0
-                            ? 'Manual only'
-                            : DAY_LABELS.filter((_, idx) => slot.days[idx]).join(', ')}
-                      </span>
-                      <span aria-hidden="true">·</span>
-                      <span>Course: {slot.courseDays ?? 365} days</span>
-                      {slot.enabled && slot.startDateKey && slot.startDateKey > clockSnapshot.dateKey && (
-                        <>
-                          <span aria-hidden="true">·</span>
-                          <span className="text-sky-700 font-medium">
-                            Starts {slot.startDateKey === tomorrowDateKey ? 'tomorrow' : slot.startDateKey}
+                          <span className="text-xs font-semibold text-slate-700 tabular-nums">
+                            {slot.dosagePills} {slot.dosagePills === 1 ? 'pill' : 'pills'} per dose
                           </span>
-                        </>
-                      )}
-                      {slotDelays.length > 0 && (
-                        <>
-                          <span aria-hidden="true">·</span>
-                          <span className="text-amber-700 font-semibold">
-                            Delayed ({slotDelays.map((d) => `${formatScheduleTime(d.delayedToTime, use24Hour)}`).join(', ')})
-                          </span>
-                        </>
-                      )}
-                    </div>
-
-                    {slot.lastStatus === 'error' && slot.lastError && (
-                      <p className="text-xs text-red-700 flex items-center gap-1.5 pt-0.5">
-                        <AlertTriangle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-                        <span>{slot.lastError}</span>
-                      </p>
-                    )}
-
-                    {slot.lastStatus === 'dispensed' && slot.lastDispensedAt && (
-                      <p className="text-xs text-emerald-700 flex items-center gap-1.5 pt-0.5">
-                        <CheckCircle2 className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-                        <span>
-                          Last dropped at{' '}
-                          {formatIsoTimeInZone(
-                            slot.lastDispensedAt,
-                            clockSnapshot.ianaTimezone,
-                            use24Hour,
+                          {!slot.enabled && (
+                            <>
+                              <span className="text-xs text-slate-400" aria-hidden="true">
+                                ·
+                              </span>
+                              <span className="text-xs font-medium text-slate-500">Paused</span>
+                            </>
                           )}
-                        </span>
-                      </p>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                          <span className="font-mono tabular-nums font-medium text-slate-700">
+                            {slot.dispenseTimes
+                              .map((t) => formatScheduleTime(t, use24Hour))
+                              .join(', ')}
+                          </span>
+                          <span aria-hidden="true">·</span>
+                          <span className="tabular-nums">
+                            Next {formatCountdown(nextMins)}
+                          </span>
+                          <span aria-hidden="true">·</span>
+                          <span>
+                            {activeDaysCount === 7
+                              ? 'Every day'
+                              : activeDaysCount === 0
+                                ? 'Manual only'
+                                : DAY_LABELS.filter((_, idx) => slot.days[idx]).join(', ')}
+                          </span>
+                          <span aria-hidden="true">·</span>
+                          <span>Course: {slot.courseDays ?? 365} days</span>
+                          {slot.enabled && slot.startDateKey && slot.startDateKey > clockSnapshot.dateKey && (
+                            <>
+                              <span aria-hidden="true">·</span>
+                              <span className="text-sky-700 font-medium">
+                                Starts {slot.startDateKey === tomorrowDateKey ? 'tomorrow' : slot.startDateKey}
+                              </span>
+                            </>
+                          )}
+                          {slotDelays.length > 0 && (
+                            <>
+                              <span aria-hidden="true">·</span>
+                              <span className="text-amber-700 font-semibold">
+                                Delayed ({slotDelays.map((d) => `${formatScheduleTime(d.delayedToTime, use24Hour)}`).join(', ')})
+                              </span>
+                            </>
+                          )}
+                        </div>
+
+                        {slot.lastStatus === 'error' && slot.lastError && (
+                          <p className="text-xs text-red-700 flex items-center gap-1.5 pt-0.5">
+                            <AlertTriangle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                            <span>{slot.lastError}</span>
+                          </p>
+                        )}
+
+                        {slot.lastStatus === 'dispensed' && slot.lastDispensedAt && (
+                          <p className="text-xs text-emerald-700 flex items-center gap-1.5 pt-0.5">
+                            <CheckCircle2 className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                            <span>
+                              Last dropped at{' '}
+                              {formatIsoTimeInZone(
+                                slot.lastDispensedAt,
+                                clockSnapshot.ianaTimezone,
+                                use24Hour,
+                              )}
+                            </span>
+                          </p>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-                  {/* Stock level segmented control: Low / Medium / Full */}
-                  <div
-                    role="group"
-                    aria-label={`Compartment ${slot.slot} stock level`}
-                    className="flex items-center gap-0.5 p-0.5 bg-slate-100 rounded-lg border border-slate-200"
-                  >
-                    {STOCK_OPTIONS.map((opt) => {
-                      const active = slot.stockLevel === opt.id;
-                      const activeClass =
-                        opt.id === 'low'
-                          ? 'bg-amber-600 text-white'
-                          : opt.id === 'medium'
-                            ? 'bg-sky-700 text-white'
-                            : 'bg-emerald-700 text-white';
-                      return (
-                        <button
-                          key={opt.id}
-                          type="button"
-                          onClick={() => onUpdateSlot({ ...slot, stockLevel: opt.id })}
-                          className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer whitespace-nowrap ${
-                            active ? activeClass : 'text-slate-600 hover:text-slate-900'
-                          }`}
-                        >
-                          {opt.label}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  {!isDummy && (
+                    <>
+                      {/* Stock level segmented control: Low / Medium / Full */}
+                      <div
+                        role="group"
+                        aria-label={`Compartment ${slot.slot} stock level`}
+                        className="flex items-center gap-0.5 p-0.5 bg-slate-100 rounded-lg border border-slate-200"
+                      >
+                        {STOCK_OPTIONS.map((opt) => {
+                          const active = slot.stockLevel === opt.id;
+                          const activeClass =
+                            opt.id === 'low'
+                              ? 'bg-amber-600 text-white'
+                              : opt.id === 'medium'
+                                ? 'bg-sky-700 text-white'
+                                : 'bg-emerald-700 text-white';
+                          return (
+                            <button
+                              key={opt.id}
+                              type="button"
+                              onClick={() => onUpdateSlot({ ...slot, stockLevel: opt.id })}
+                              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer whitespace-nowrap ${
+                                active ? activeClass : 'text-slate-600 hover:text-slate-900'
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          );
+                        })}
+                      </div>
 
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setEditingSlot({
-                        ...slot,
-                        dispenseTimes: [...slot.dispenseTimes],
-                        days: [...slot.days],
-                      })
-                    }
-                    className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-                  >
-                    <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
-                    <span>Edit</span>
-                  </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setEditingSlot({
+                            ...slot,
+                            dispenseTimes: [...slot.dispenseTimes],
+                            days: [...slot.days],
+                          })
+                        }
+                        className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                      >
+                        <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
+                        <span>Edit</span>
+                      </button>
 
-                  <button
-                    type="button"
-                    onClick={() => void onDropPill(slot.slot)}
-                    disabled={!isConnected || isBusy || slot.stockLevel === 'empty'}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-sky-700 hover:bg-sky-800 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap shrink-0 cursor-pointer"
-                  >
-                    <ArrowDownCircle className="w-3.5 h-3.5" aria-hidden="true" />
-                    <span>
-                      {isDropping
-                        ? 'Dropping...'
-                        : 'Dispense'}
-                    </span>
-                  </button>
+                      <button
+                        type="button"
+                        onClick={() => void onDropPill(slot.slot)}
+                        disabled={!isConnected || isBusy || slot.stockLevel === 'empty'}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-sky-700 hover:bg-sky-800 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap shrink-0 cursor-pointer"
+                      >
+                        <ArrowDownCircle className="w-3.5 h-3.5" aria-hidden="true" />
+                        <span>
+                          {isDropping
+                            ? 'Dropping...'
+                            : 'Dispense'}
+                        </span>
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             );

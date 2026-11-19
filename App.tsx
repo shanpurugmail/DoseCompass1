@@ -158,7 +158,7 @@ export function App() {
     const legacyV2 = loadSavedJson<CompartmentSlot[] | null>(LEGACY_SLOTS_KEY_V2, null);
     // Preserve the user's first four compartment definitions when migrating
     // the old 13-compartment app to this four-servo ESP32.
-    const source = savedFour?.length >= 4
+/*    const source = savedFour?.length >= 4
       ? savedFour
       : savedOld?.length >= 4
         ? savedOld
@@ -174,7 +174,50 @@ export function App() {
         : ['08:00'],
       days: Array.isArray(slot.days) && slot.days.length === 7 ? slot.days : [...ALL_DAYS],
       startDateKey: slot.startDateKey || initialTomorrowKey,
+    })); 
+*/ 
+// Changed above code to below line
+// Changing to - 1
+    const source: CompartmentSlot[] =
+      savedFour && savedFour.length >= 4
+        ? savedFour
+        : savedOld && savedOld.length >= 4
+          ? savedOld
+          : legacyV2 && legacyV2.length >= 4
+            ? legacyV2
+            : DEFAULT_SLOTS;
+
+    const activeSlots = source.slice(0, 4).map((slot, index) => ({
+      ...slot,
+      slot: index + 1,
+      courseDays: Math.min(365, Math.max(1, Number(slot.courseDays) || 365)),
+      dispenseTimes: Array.isArray(slot.dispenseTimes) && slot.dispenseTimes.length
+        ? slot.dispenseTimes.slice(0, 8)
+        : ['08:00'],
+      days: Array.isArray(slot.days) && slot.days.length === 7
+        ? slot.days
+        : [...ALL_DAYS],
+      startDateKey: slot.startDateKey || initialTomorrowKey,
     }));
+
+    const dummySlots: CompartmentSlot[] = Array.from(
+      { length: 9 },
+      (_, index) => ({
+        slot: index + 5,
+        medicationName: 'Not in Use',
+        dosagePills: 0,
+        dispenseTimes: [],
+        days: [...ALL_DAYS],
+        stockLevel: 'empty',
+        enabled: false,
+        lastDispensedAt: null,
+        lastStatus: 'idle',
+      }),
+    );
+
+    return [...activeSlots, ...dummySlots];
+
+// Changing to - 1
   });
   const [delays, setDelays] = useState<DoseDelay[]>(() =>
     loadSavedJson<DoseDelay[]>(STORAGE_KEYS.delays, []),
@@ -511,7 +554,12 @@ export function App() {
       return;
     }
     try {
-      for (const slot of slots) {
+
+// Changing - 3 
+//      for (const slot of slots) {
+//        await hardwareTransport.sendCommand(buildEsp32PlanCommand(slot));
+//      }
+      for (const slot of slots.filter((slot) => slot.slot <= 4)) {
         await hardwareTransport.sendCommand(buildEsp32PlanCommand(slot));
       }
       await hardwareTransport.sendCommand('P?');
@@ -611,6 +659,15 @@ export function App() {
         return;
       }
 
+// Changing - 2
+      if (!Number.isInteger(slotNumber) || slotNumber < 1 || slotNumber > 4) {
+        const message = `Compartment ${slotNumber} is not connected to a physical servo.`;
+        setConnectionError(message);
+        appendPacketLog('error', message);
+        return;
+      }
+// Changing - 2
+
       const targetSlot = slots.find((s) => s.slot === slotNumber);
       if (!targetSlot) return;
 
@@ -687,9 +744,10 @@ export function App() {
                 ? 'schedule'
                 : currentTransport === 'ble'
                   ? 'ble'
-                  : currentTransport === 'mqtt'
-                    ? 'mqtt'
-                    : 'serial',
+                  : 'serial',
+//                  : currentTransport === 'serial' --- mqtt is not required
+//                    ? 'mqtt'
+//                    : 'serial',
             timestamp: nowIso,
             note: `Hardware ACK (${rttMs} ms)`,
           },
@@ -797,7 +855,8 @@ export function App() {
     const items: TodayDoseItem[] = [];
 
     for (const slot of slots) {
-      if (!slot.enabled) continue;
+//      if (!slot.enabled) continue;  - New line below to limit to 4 compartments
+      if (slot.slot < 1 || slot.slot > 4 || !slot.enabled) continue;
       if (slot.startDateKey && clockSnapshot.dateKey < slot.startDateKey) continue;
       const firstDay = dateKeyToEpochDay(slot.startDateKey || clockSnapshot.dateKey);
       const todayDay = dateKeyToEpochDay(clockSnapshot.dateKey);
@@ -891,6 +950,7 @@ export function App() {
   ]);
 
   const handleUpdateSlot = (updated: CompartmentSlot) => {
+    if (updated.slot < 1 || updated.slot > 4) return; // New Line Added to limit to 4 compartment
     const previous = slots.find((slot) => slot.slot === updated.slot);
     setSlots((prev) => prev.map((slot) => (slot.slot === updated.slot ? updated : slot)));
     const scheduleChanged = !previous ||
