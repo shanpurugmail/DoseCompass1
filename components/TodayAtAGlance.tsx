@@ -133,12 +133,21 @@ export const TodayAtAGlance: React.FC<TodayAtAGlanceProps> = ({
               <h2 className="text-lg font-bold text-slate-900 tracking-tight">
                 Today at a Glance
               </h2>
-              <p className="text-sm text-slate-500 mt-0.5">
-                {clockSnapshot.dateLabel} ·{' '}
-                  <span className="text-xl font-extrabold text-slate-900">
-                    {formatScheduleTime(clockSnapshot.time24.slice(0, 5), use24Hour)}
-                  </span>
-              </p>
+<div className="mt-1">
+  <div className="font-mono tabular-nums text-3xl sm:text-4xl font-semibold text-slate-900 tracking-tight">
+    {use24Hour ? clockSnapshot.time24 : clockSnapshot.time12}
+  </div>
+
+  <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+    <span>{clockSnapshot.dateLabel}</span>
+    <span aria-hidden="true">·</span>
+    <span className="font-mono tabular-nums">
+      {clockSnapshot.offsetLabel}
+    </span>
+    <span aria-hidden="true">·</span>
+    <span>{clockSnapshot.shortZone}</span>
+  </div>
+</div>
             </div>
 
             <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600 tabular-nums">
