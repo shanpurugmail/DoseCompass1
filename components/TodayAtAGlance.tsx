@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { DeviceClock } from './DeviceClock';
 import {
   ArrowDownCircle,
   Clock,
@@ -12,7 +11,6 @@ import {
 } from 'lucide-react';
 import type {
   DishSensorState,
-  HardwareTelemetry,
   TodayDoseItem,
   TransportKind,
 } from '../types/dispenser';
@@ -24,14 +22,6 @@ import {
 
 
 interface TodayAtAGlanceProps {
-  telemetry: HardwareTelemetry;
-  timezone: string;
-  onChangeTimezone: (tz: string) => void;
-  onSyncClock: () => Promise<void>;
-  isSyncingClock: boolean;
-  autoSyncClock: boolean;
-  onToggleAutoSyncClock: () => void;
-  onToggle24Hour: () => void;
   todayDoses: TodayDoseItem[];
   dishSensor: DishSensorState;
   dishRefreshMs: number;
@@ -57,14 +47,6 @@ const REFRESH_OPTIONS = [
 ];
 
 export const TodayAtAGlance: React.FC<TodayAtAGlanceProps> = ({
-  telemetry,
-  timezone,
-  onChangeTimezone,
-  onSyncClock,
-  isSyncingClock,
-  autoSyncClock,
-  onToggleAutoSyncClock,
-  onToggle24Hour,
   todayDoses,
   dishSensor,
   dishRefreshMs,
@@ -145,14 +127,17 @@ export const TodayAtAGlance: React.FC<TodayAtAGlanceProps> = ({
     <section className="space-y-6" aria-label="Today at a glance and dish weight sensor">
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-stretch">
         {/* Left: Today at a Glance Timeline */}
-        <div className="xl:col-span-5 bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col">
+        <div className="xl:col-span-8 bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col">
           <div className="px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-4">
             <div>
               <h2 className="text-lg font-bold text-slate-900 tracking-tight">
                 Today at a Glance
               </h2>
               <p className="text-sm text-slate-500 mt-0.5">
-                {clockSnapshot.dateLabel} · {clockSnapshot.ianaTimezone} ({clockSnapshot.shortZone})
+                {clockSnapshot.dateLabel} ·{' '}
+                  <span className="text-xl font-extrabold text-slate-900">
+                    {formatScheduleTime(clockSnapshot.time24.slice(0, 5), use24Hour)}
+                  </span>
               </p>
             </div>
 
@@ -366,20 +351,14 @@ export const TodayAtAGlance: React.FC<TodayAtAGlanceProps> = ({
           )}
         </div>
 
-
-        {/* Right: Dish Weight Sensor + Device Clock */}
-
           {/* Dish Weight Sensor Card */}
-          <div className="xl:col-span-3 bg-white border border-slate-200 rounded-xl p-5 flex flex-col justify-between">
+          <div className="xl:col-span-4 bg-white border border-slate-200 rounded-xl p-5 flex flex-col justify-between">
             <div className="space-y-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h2 className="text-lg font-bold text-slate-900 tracking-tight">
                     Dish Weight Sensor
                   </h2>
-                  <p className="text-sm text-slate-500 mt-0.5">
-                    HX711 load cell pill verification
-                  </p>
                 </div>
                 <Scale className="w-5 h-5 text-slate-400 shrink-0" aria-hidden="true" />
               </div>
@@ -456,23 +435,6 @@ export const TodayAtAGlance: React.FC<TodayAtAGlanceProps> = ({
                 <span>Tare Scale</span>
               </button>
             </div>
-          </div>
-
-          {/* Device Clock Card */}
-          <div className="xl:col-span-4">
-            <DeviceClock
-              telemetry={telemetry}
-              transport={transport}
-              timezone={timezone}
-              onChangeTimezone={onChangeTimezone}
-              use24Hour={use24Hour}
-              onToggle24Hour={onToggle24Hour}
-              autoSyncClock={autoSyncClock}
-              onToggleAutoSyncClock={onToggleAutoSyncClock}
-              clockSnapshot={clockSnapshot}
-              onSyncClock={onSyncClock}
-              isSyncingClock={isSyncingClock}
-            />
           </div>
         </div>
       </section>

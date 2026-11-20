@@ -37,7 +37,7 @@ export const DeviceClock: React.FC<DeviceClockProps> = ({
   const timezones = getAvailableTimezones();
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-6 flex flex-col justify-between">
+    <div className="bg-white border border-slate-200 rounded-xl p-6 flex flex-col justify-between h-full">
       <div className="space-y-4">
         <div className="flex items-start justify-between gap-3">
           <div>

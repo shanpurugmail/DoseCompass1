@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Bluetooth, BluetoothOff } from 'lucide-react';
 import { DeviceManager } from './components/DeviceManager';
+import { DeviceClock } from './components/DeviceClock';
 import { TodayAtAGlance } from './components/TodayAtAGlance';
 import { DispenserControl } from './components/DispenserControl';
 import { CaregiverDashboard } from './components/CaregiverDashboard';
@@ -25,7 +26,7 @@ import {
   getTimezoneSnapshot,
 } from './utils/timezone';
 
-type ActiveTab = 'overview' | 'dispenser' | 'caregiver';
+type ActiveTab = 'overview' | 'dispenser' | 'hardware' | 'caregiver';
 
 const LEGACY_SLOTS_KEY_V2 = 'dosecompass_slots_13_v2';
 
@@ -1005,6 +1006,7 @@ export function App() {
               [
                 { id: 'overview', label: 'Dashboard' },
                 { id: 'dispenser', label: 'Dispenser Management' },
+                { id: 'hardware', label: 'Hardware' },
                 { id: 'caregiver', label: 'Caregiver Log' },
               ] as const
             ).map((item) => (
@@ -1052,6 +1054,7 @@ export function App() {
             [
               { id: 'overview', label: 'Dashboard' },
               { id: 'dispenser', label: 'Dispenser Management' },
+              { id: 'hardware', label: 'Hardware' },
               { id: 'caregiver', label: 'Caregiver Log' },
             ] as const
           ).map((item) => (
@@ -1075,14 +1078,6 @@ export function App() {
         {activeTab === 'overview' && (
           <>
             <TodayAtAGlance
-              telemetry={telemetry}
-              timezone={timezone}
-              onChangeTimezone={handleTimezoneChange}
-              onSyncClock={() => syncClockToDevice(timezone)}
-              isSyncingClock={isSyncingClock}
-              autoSyncClock={autoSyncClock}
-              onToggleAutoSyncClock={() => setAutoSyncClock((prev) => !prev)}
-              onToggle24Hour={() => setUse24Hour((prev) => !prev)}
               todayDoses={todayDoses}
               dishSensor={dishSensor}
               dishRefreshMs={dishRefreshMs}
@@ -1092,7 +1087,7 @@ export function App() {
               clockSnapshot={clockSnapshot}
               use24Hour={use24Hour}
               onDropDose={(slotNum, origTime) =>
-                handleDropPill(slotNum, 'manual', origTime)
+              handleDropPill(slotNum, 'manual', origTime)
               }
               onDelayDose={handleDelayDose}
               onCancelDelay={handleCancelDelay}
@@ -1101,7 +1096,7 @@ export function App() {
               lowStockCount={lowStockCount}
               queuedForTomorrowCount={queuedForTomorrowCount}
             />
-            
+
             <DispenserControl
               viewMode="dashboard"
               slots={slots}
@@ -1113,25 +1108,6 @@ export function App() {
               onDropPill={(slotNum) => handleDropPill(slotNum, 'manual')}
               onUpdateSlot={handleUpdateSlot}
             />
-
-            <DeviceManager
-              transport={transport}
-              telemetry={telemetry}
-              customBleServiceUuid={customBleServiceUuid}
-              onChangeCustomBleServiceUuid={setCustomBleServiceUuid}
-              packetLogs={packetLogs}
-              onClearLogs={() => setPacketLogs([])}
-              onConnectBle={handleConnectBle}
-              onConnectSerial={handleConnectSerial}
-              onDisconnect={handleDisconnect}
-              onSyncPlans={handleSyncPlans}
-              onPingDevice={handlePingDevice}
-              onSendRawCommand={handleSendRawCommand}
-              connectionError={connectionError}
-              isConnecting={isConnecting}
-            />
-
-
 
             <CaregiverDashboard
               logs={adherenceLogs}
@@ -1157,6 +1133,42 @@ export function App() {
             onUpdateSlot={handleUpdateSlot}
           />
         )}
+
+
+{activeTab === 'hardware' && (
+  <DeviceManager
+    transport={transport}
+    telemetry={telemetry}
+    deviceClock={
+      <DeviceClock
+        telemetry={telemetry}
+        transport={transport}
+        timezone={timezone}
+        onChangeTimezone={handleTimezoneChange}
+        use24Hour={use24Hour}
+        onToggle24Hour={() => setUse24Hour((prev) => !prev)}
+        autoSyncClock={autoSyncClock}
+        onToggleAutoSyncClock={() => setAutoSyncClock((prev) => !prev)}
+        clockSnapshot={clockSnapshot}
+        onSyncClock={() => syncClockToDevice(timezone)}
+        isSyncingClock={isSyncingClock}
+      />
+    }
+    customBleServiceUuid={customBleServiceUuid}
+    onChangeCustomBleServiceUuid={setCustomBleServiceUuid}
+    packetLogs={packetLogs}
+    onClearLogs={() => setPacketLogs([])}
+    onConnectBle={handleConnectBle}
+    onConnectSerial={handleConnectSerial}
+    onDisconnect={handleDisconnect}
+    onSyncPlans={handleSyncPlans}
+    onPingDevice={handlePingDevice}
+    onSendRawCommand={handleSendRawCommand}
+    connectionError={connectionError}
+    isConnecting={isConnecting}
+  />
+)}
+
 
         {activeTab === 'caregiver' && (
           <CaregiverDashboard

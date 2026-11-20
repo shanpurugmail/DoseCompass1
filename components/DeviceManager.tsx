@@ -21,6 +21,7 @@ type ConnectionModeTab = 'ble' | 'serial';
 interface DeviceManagerProps {
   transport: TransportKind;
   telemetry: HardwareTelemetry;
+  deviceClock: React.ReactNode;
   customBleServiceUuid: string;
   onChangeCustomBleServiceUuid: (uuid: string) => void;
   packetLogs: PacketLogEntry[];
@@ -38,6 +39,7 @@ interface DeviceManagerProps {
 export const DeviceManager: React.FC<DeviceManagerProps> = ({
   transport,
   telemetry,
+  deviceClock,
   customBleServiceUuid,
   onChangeCustomBleServiceUuid,
   packetLogs,
@@ -73,7 +75,7 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({
     <section className="space-y-6" aria-label="Hardware connection">
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
         {/* Left: Hardware Connection (BLE GATT / USB Serial) */}
-        <div className="lg:col-span-12 bg-white border border-slate-200 rounded-xl p-6 flex flex-col justify-between">
+        <div className="lg:col-span-8 bg-white border border-slate-200 rounded-xl p-6 flex flex-col justify-between">
           <div className="space-y-4">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
@@ -294,6 +296,10 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({
             )}
           </div>
         </div>
+          {/* Right: Device Clock */}
+          <div className="lg:col-span-4 h-full">
+            {deviceClock}
+          </div>
       </div>
 
       {/* Hardware TX/RX Packet Monitor */}

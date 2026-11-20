@@ -26,3 +26,7 @@
 .tabular-nums {
   font-variant-numeric: tabular-nums;
 }
+
+html {
+  scrollbar-gutter: stable;
+}
