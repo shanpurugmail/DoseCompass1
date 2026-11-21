@@ -31,7 +31,7 @@ type ActiveTab = 'overview' | 'dispenser' | 'hardware' | 'caregiver';
 const LEGACY_SLOTS_KEY_V2 = 'dosecompass_slots_13_v2';
 
 const STORAGE_KEYS = {
-  slots: 'dosecompass_slots_4_esp32_v1',
+  slots: 'dosecompass_slots_12_fresh_v1',
   delays: 'dosecompass_delays_v2',
   logs: 'dosecompass_adherence_v2',
   timezone: 'dosecompass_timezone_v2',
@@ -43,57 +43,6 @@ const STORAGE_KEYS = {
 
 const ALL_DAYS = [true, true, true, true, true, true, true];
 
-const DEFAULT_SLOTS: CompartmentSlot[] = [
-  {
-    slot: 1,
-    courseDays: 365,
-    medicationName: 'Metformin',
-    dosagePills: 1,
-    dispenseTimes: ['08:00', '20:00'],
-    days: [...ALL_DAYS],
-    stockLevel: 'full',
-    enabled: false,
-    lastDispensedAt: null,
-    lastStatus: 'idle',
-  },
-  {
-    slot: 2,
-    courseDays: 365,
-    medicationName: 'Lisinopril',
-    dosagePills: 1,
-    dispenseTimes: ['08:30'],
-    days: [...ALL_DAYS],
-    stockLevel: 'medium',
-    enabled: false,
-    lastDispensedAt: null,
-    lastStatus: 'idle',
-  },
-  {
-    slot: 3,
-    courseDays: 365,
-    medicationName: 'Vitamin D3',
-    dosagePills: 2,
-    dispenseTimes: ['12:00'],
-    days: [...ALL_DAYS],
-    stockLevel: 'full',
-    enabled: false,
-    lastDispensedAt: null,
-    lastStatus: 'idle',
-  },
-  {
-    slot: 4,
-    courseDays: 365,
-    medicationName: 'Atorvastatin',
-    dosagePills: 1,
-    dispenseTimes: ['21:00'],
-    days: [...ALL_DAYS],
-    stockLevel: 'medium',
-    enabled: false,
-    lastDispensedAt: null,
-    lastStatus: 'idle',
-  },
-
-];
 
 function dateKeyToEpochDay(dateKey: string): number {
   const [year, month, day] = dateKey.split('-').map(Number);
@@ -149,58 +98,42 @@ export function App() {
   const [nowDate, setNowDate] = useState<Date>(() => new Date());
 
   const [slots, setSlots] = useState<CompartmentSlot[]>(() => {
-    const initialTz = loadSavedJson<string>(STORAGE_KEYS.timezone, getBrowserTimezone());
-    const initialTomorrowKey = addDaysToDateKey(
+    const savedSlots = loadSavedJson<CompartmentSlot[] | null>(
+      STORAGE_KEYS.slots,
+      null
+    );
+
+    // Restore the new 12-compartment configuration if available.
+    if (savedSlots && savedSlots.length === 12) {
+      return savedSlots;
+    }
+
+    // Otherwise create 12 fresh, disabled compartments.
+    const initialTz = loadSavedJson<string>(
+      STORAGE_KEYS.timezone,
+      getBrowserTimezone()
+    );
+
+    const tomorrowKey = addDaysToDateKey(
       getTimezoneSnapshot(initialTz, new Date()).dateKey,
-      1,
+      1
     );
-    const savedFour = loadSavedJson<CompartmentSlot[] | null>(STORAGE_KEYS.slots, null);
-    const savedOld = loadSavedJson<CompartmentSlot[] | null>('dosecompass_slots_13_v3', null);
-    const legacyV2 = loadSavedJson<CompartmentSlot[] | null>(LEGACY_SLOTS_KEY_V2, null);
-    // Preserve the user's first four compartment definitions when migrating
-    // the old 13-compartment app to this four-servo ESP32.
 
-    const source: CompartmentSlot[] =
-      savedFour && savedFour.length >= 4
-        ? savedFour
-        : savedOld && savedOld.length >= 4
-          ? savedOld
-          : legacyV2 && legacyV2.length >= 4
-            ? legacyV2
-            : DEFAULT_SLOTS;
-
-    const activeSlots = source.slice(0, 4).map((slot, index) => ({
-      ...slot,
+    return Array.from({ length: 12 }, (_, index) => ({
       slot: index + 1,
-      courseDays: Math.min(365, Math.max(1, Number(slot.courseDays) || 365)),
-      dispenseTimes: Array.isArray(slot.dispenseTimes) && slot.dispenseTimes.length
-        ? slot.dispenseTimes.slice(0, 8)
-        : ['08:00'],
-      days: Array.isArray(slot.days) && slot.days.length === 7
-        ? slot.days
-        : [...ALL_DAYS],
-      startDateKey: slot.startDateKey || initialTomorrowKey,
+      medicationName: '',
+      dosagePills: 1,
+      dispenseTimes: ['08:00'],
+      days: [...ALL_DAYS],
+      stockLevel: 'full' as StockLevel,
+      enabled: false,
+      startDateKey: tomorrowKey,
+      courseDays: 365,
+      lastDispensedAt: null,
+      lastStatus: 'idle' as const,
     }));
-
-    const dummySlots: CompartmentSlot[] = Array.from(
-      { length: 8 },
-      (_, index) => ({
-        slot: index + 5,
-        medicationName: 'Not in Use',
-        dosagePills: 0,
-        dispenseTimes: [],
-        days: [...ALL_DAYS],
-        stockLevel: 'empty',
-        enabled: false,
-        lastDispensedAt: null,
-        lastStatus: 'idle',
-      }),
-    );
-
-    return [...activeSlots, ...dummySlots];
-
-
   });
+
   const [delays, setDelays] = useState<DoseDelay[]>(() =>
     loadSavedJson<DoseDelay[]>(STORAGE_KEYS.delays, []),
   );
@@ -926,7 +859,7 @@ export function App() {
   ]);
 
   const handleUpdateSlot = (updated: CompartmentSlot) => {
-    if (updated.slot < 1 || updated.slot > 4) return; // New Line Added to limit to 4 compartment
+    if (updated.slot < 1 || updated.slot > 12) return; // New Line Added to limit to 4 compartment
     const previous = slots.find((slot) => slot.slot === updated.slot);
     setSlots((prev) => prev.map((slot) => (slot.slot === updated.slot ? updated : slot)));
     const scheduleChanged = !previous ||
@@ -936,7 +869,7 @@ export function App() {
       previous.courseDays !== updated.courseDays ||
       JSON.stringify(previous.dispenseTimes) !== JSON.stringify(updated.dispenseTimes) ||
       JSON.stringify(previous.days) !== JSON.stringify(updated.days);
-    if (!scheduleChanged) return;
+    if (!scheduleChanged || updated.slot > 4) return;
     if (hardwareTransport.getTransport() === 'serial') {
       void hardwareTransport.sendCommand(buildEsp32PlanCommand(updated)).catch((err) => {
         setFirmwarePlansSynced(false);

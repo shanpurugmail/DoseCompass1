@@ -56,6 +56,9 @@ export const DispenserControl: React.FC<DispenserControlProps> = ({
   const [editingSlot, setEditingSlot] = useState<CompartmentSlot | null>(null);
   const [newTimeInput, setNewTimeInput] = useState('12:00');
   const isConnected = transport !== 'disconnected';
+  const enabledSlotsCount = slots.filter(
+                                          (slot) => slot.enabled
+                                        ).length;
 
   const getNextScheduleMinutes = (times: string[]): number => {
     if (times.length === 0) return 0;
@@ -72,19 +75,48 @@ export const DispenserControl: React.FC<DispenserControlProps> = ({
 
   const tomorrowDateKey = addDaysToDateKey(clockSnapshot.dateKey, 1);
 
-  const handleSaveSlot = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingSlot) return;
-    const sortedTimes = [...new Set(editingSlot.dispenseTimes)].sort();
-    onUpdateSlot({
-      ...editingSlot,
-      dispenseTimes: sortedTimes.length > 0 ? sortedTimes : ['08:00'],
-      dosagePills: Math.max(1, editingSlot.dosagePills),
-      startDateKey: tomorrowDateKey,
-      courseDays: Math.min(365, Math.max(1, Number(editingSlot.courseDays) || 365)),
-    });
-    setEditingSlot(null);
-  };
+
+const handleSaveSlot = (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!editingSlot) return;
+
+  const medicationName = editingSlot.medicationName.trim();
+
+  const sortedTimes = [
+    ...new Set(
+      editingSlot.dispenseTimes.filter(
+        (time) => /^([01]\d|2[0-3]):[0-5]\d$/.test(time)
+      )
+    ),
+  ].sort();
+
+  // Medication name is mandatory
+  if (!medicationName) {
+    alert('Please enter a medication name.');
+    return;
+  }
+
+  // Every enabled compartment must have at least one valid time
+  if (editingSlot.enabled && sortedTimes.length === 0) {
+    alert('Please configure at least one valid dispensing time.');
+    return;
+  }
+
+  onUpdateSlot({
+    ...editingSlot,
+    medicationName,
+    dispenseTimes: sortedTimes,
+    dosagePills: Math.max(1, editingSlot.dosagePills),
+    startDateKey: tomorrowDateKey,
+    courseDays: Math.min(
+      365,
+      Math.max(1, Number(editingSlot.courseDays) || 365)
+    ),
+  });
+
+  setEditingSlot(null);
+};
+
 
   const handleAddTimeInModal = () => {
     if (!editingSlot || !newTimeInput) return;
@@ -95,26 +127,37 @@ export const DispenserControl: React.FC<DispenserControlProps> = ({
     });
   };
 
-  const handleRemoveTimeInModal = (timeToRemove: string) => {
-    if (!editingSlot || editingSlot.dispenseTimes.length <= 1) return;
-    setEditingSlot({
-      ...editingSlot,
-      dispenseTimes: editingSlot.dispenseTimes.filter((t) => t !== timeToRemove),
-    });
-  };
+const handleRemoveTimeInModal = (timeToRemove: string) => {
+  if (!editingSlot) return;
+
+  setEditingSlot({
+    ...editingSlot,
+    dispenseTimes: editingSlot.dispenseTimes.filter(
+      (t) => t !== timeToRemove
+    ),
+  });
+};
 
   return (
-    <section className="space-y-4" aria-label="Four-servo medicine dispenser">
+    <section className="space-y-4" aria-label="12-compartment medicine dispenser">
       <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h2 className="text-lg font-bold text-slate-900 tracking-tight">
-              {viewMode === 'dashboard'
-                ? 'Dispenser Overview'
-                : '12-Compartment Dispenser Management'}
-            </h2>
+              <div className="flex flex-wrap items-center gap-3">
+                <h2 className="text-lg font-bold text-slate-900 tracking-tight">
+                  {viewMode === 'dashboard'
+                    ? 'Dispenser Overview'
+                    : '12-Compartment Dispenser Management'}
+                </h2>
+
+                {viewMode === 'dashboard' && (
+                  <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold">
+                    {enabledSlotsCount} of 12 Enabled
+                  </span>
+                )}
+              </div>
             <p className="text-sm text-slate-500 mt-0.5">
-              4 Active compartments (In Use) · 8 compartments not in use · Up to 8 daily times per servo · Evaluated in {clockSnapshot.ianaTimezone} ({clockSnapshot.shortZone})
+              12 configurable compartments · Up to 8 daily times per compartment · Evaluated in {clockSnapshot.ianaTimezone} ({clockSnapshot.shortZone})
             </p>
           </div>
 
@@ -133,14 +176,26 @@ export const DispenserControl: React.FC<DispenserControlProps> = ({
           <div
               className={
                 viewMode === 'dashboard'
-                  ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 p-4'
+                  ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4 p-4'
                   : 'divide-y divide-slate-100'
               }
             >
           {slots.map((slot) => {
             const isDropping = pendingDropSlot === slot.slot;
             const isBusy = pendingDropSlot !== null;
-            const isDummy = slot.slot > 4;
+            const isDisabled = !slot.enabled;
+            const stockLabel =
+              slot.stockLevel === 'full' ? 'Full' :
+              slot.stockLevel === 'medium' ? 'Medium' :
+              slot.stockLevel === 'low' ? 'Low' : 'Empty';
+            const stockBadgeClass =
+              slot.stockLevel === 'full'
+                ? 'bg-emerald-50 text-emerald-700'
+                : slot.stockLevel === 'medium'
+                  ? 'bg-sky-50 text-sky-700'
+                  : slot.stockLevel === 'low'
+                    ? 'bg-amber-50 text-amber-700'
+                    : 'bg-red-50 text-red-700';
             const nextMins = getNextScheduleMinutes(slot.dispenseTimes);
             const activeDaysCount = slot.days.filter(Boolean).length;
             const slotDelays = delays.filter(
@@ -151,90 +206,120 @@ export const DispenserControl: React.FC<DispenserControlProps> = ({
                 <div
                   key={slot.slot}
                   className={
-                    viewMode === 'dashboard'
-                      ? `h-full rounded-xl border border-slate-200 p-4 shadow-sm ${
-                          isDummy ? 'bg-slate-50 opacity-60' : 'bg-white'
-                        }`
-                      : `px-6 py-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4 ${
-                          isDummy
-                            ? 'bg-slate-50 opacity-60'
-                            : 'hover:bg-slate-50/70 transition-colors'
-                        }`
+                      viewMode === 'dashboard'
+                        ? `h-full rounded-xl border border-slate-200 p-4 shadow-sm ${
+                            isDisabled ? 'bg-slate-50 opacity-60' : 'bg-white'
+                          }`
+                        : `px-6 py-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4 hover:bg-slate-50/70 transition-colors`
                   }
                 >
                 <div className="flex items-start gap-4 min-w-0">
                   <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center font-mono font-semibold text-sm text-slate-800 shrink-0 tabular-nums">
                     S{slot.slot}
                   </div>
-                  <div className="min-w-0 space-y-1">
-                    {isDummy ? (
-                      <div>
-                        <h3 className="text-sm font-bold text-slate-500">
-                          Not in Use
-                        </h3>
-                        <p className="text-xs text-slate-400 mt-1">
-                          No servo assigned to this compartment
-                        </p>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-sm font-bold text-slate-900 truncate">
-                            {slot.medicationName}
-                          </h3>
-                          <span className="text-xs text-slate-400" aria-hidden="true">
-                            ·
-                          </span>
-                          <span className="text-xs font-semibold text-slate-700 tabular-nums">
-                            {slot.dosagePills} {slot.dosagePills === 1 ? 'pill' : 'pills'} per dose
-                          </span>
-                          {!slot.enabled && (
-                            <>
-                              <span className="text-xs text-slate-400" aria-hidden="true">
-                                ·
-                              </span>
-                              <span className="text-xs font-medium text-slate-500">Paused</span>
-                            </>
-                          )}
-                        </div>
+                  <div className="flex-1 min-w-0 space-y-1">
+                      {isDisabled ? (
+                        <div>
+                          <div className="flex items-center justify-between gap-2 w-full min-w-0">
 
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                          <span className="font-mono tabular-nums font-medium text-slate-700">
-                            {slot.dispenseTimes
-                              .map((t) => formatScheduleTime(t, use24Hour))
-                              .join(', ')}
-                          </span>
-                          <span aria-hidden="true">·</span>
-                          <span className="tabular-nums">
-                            Next {formatCountdown(nextMins)}
-                          </span>
-                          <span aria-hidden="true">·</span>
-                          <span>
-                            {activeDaysCount === 7
-                              ? 'Every day'
-                              : activeDaysCount === 0
-                                ? 'Manual only'
-                                : DAY_LABELS.filter((_, idx) => slot.days[idx]).join(', ')}
-                          </span>
-                          <span aria-hidden="true">·</span>
-                          <span>Course: {slot.courseDays ?? 365} days</span>
-                          {slot.enabled && slot.startDateKey && slot.startDateKey > clockSnapshot.dateKey && (
-                            <>
-                              <span aria-hidden="true">·</span>
-                              <span className="text-sky-700 font-medium">
-                                Starts {slot.startDateKey === tomorrowDateKey ? 'tomorrow' : slot.startDateKey}
-                              </span>
-                            </>
-                          )}
-                          {slotDelays.length > 0 && (
-                            <>
-                              <span aria-hidden="true">·</span>
-                              <span className="text-amber-700 font-semibold">
-                                Delayed ({slotDelays.map((d) => `${formatScheduleTime(d.delayedToTime, use24Hour)}`).join(', ')})
-                              </span>
-                            </>
-                          )}
+                            <h3 className="text-sm font-bold text-slate-500 truncate">
+                              {slot.medicationName || 'Not in Use'}
+                            </h3>
+
+                            <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-600 text-[10px] font-bold whitespace-nowrap shrink-0">
+                              DISABLED
+                            </span>
+
+                          </div>
+                          <p className="text-xs text-slate-400 mt-1">
+                            Enable this compartment in Dispenser Management
+                          </p>
                         </div>
+                      ) : (
+                      <>
+                      
+                {/* Line 1: Medication name, dosage and enabled status */}
+                <div className="flex items-center gap-2 w-full min-w-0">
+
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <h3 className="text-sm font-bold text-slate-900 truncate">
+                      {slot.medicationName || 'Medication not configured'}
+                    </h3>
+
+                    <span className="text-xs font-semibold text-slate-700 tabular-nums whitespace-nowrap">
+                      {slot.dosagePills} {slot.dosagePills === 1 ? 'pill' : 'pills'} per dose
+                    </span>
+                  </div>
+
+                  <span className="ml-auto px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold whitespace-nowrap shrink-0">
+                    ENABLED
+                  </span>
+
+                </div>
+
+                {/* Line 2: Dispensing timings */}
+                <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                  <span className="font-mono tabular-nums font-medium text-slate-700">
+                    {slot.dispenseTimes
+                      .map((t) => formatScheduleTime(t, use24Hour))
+                      .join(', ')}
+                  </span>
+                </div>
+
+                {/* Line 3: Days, course and stock */}
+                <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                  <span>
+                    {activeDaysCount === 7
+                      ? 'Every day'
+                      : activeDaysCount === 0
+                        ? 'Manual only'
+                        : DAY_LABELS.filter((_, idx) => slot.days[idx]).join(', ')}
+                  </span>
+
+                  <span aria-hidden="true">·</span>
+
+                  <span>Course: {slot.courseDays ?? 365} days</span>
+
+                  {slot.enabled && slot.startDateKey &&
+                    slot.startDateKey > clockSnapshot.dateKey && (
+                      <>
+                        <span aria-hidden="true">·</span>
+                        <span className="text-sky-700 font-medium">
+                          Starts {slot.startDateKey === tomorrowDateKey
+                            ? 'tomorrow'
+                            : slot.startDateKey}
+                        </span>
+                      </>
+                    )}
+
+                  {slotDelays.length > 0 && (
+                    <>
+                      <span aria-hidden="true">·</span>
+                      <span className="text-amber-700 font-semibold">
+                        Delayed ({slotDelays.map((d) =>
+                          formatScheduleTime(d.delayedToTime, use24Hour)
+                        ).join(', ')})
+                      </span>
+                    </>
+                  )}
+                </div>
+
+                {/* Next dispensing and Stock information */}
+                <div className="flex items-center justify-between gap-2 mt-1 w-full">
+
+                  <div className="text-xs text-slate-500 min-w-0">
+                    Next {formatCountdown(nextMins)}
+                  </div>
+
+                  {viewMode === 'dashboard' && (
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap shrink-0 ${stockBadgeClass}`}
+                    >
+                      Stock: {stockLabel}
+                    </span>
+                  )}
+
+                </div>
 
                         {slot.lastStatus === 'error' && slot.lastError && (
                           <p className="text-xs text-red-700 flex items-center gap-1.5 pt-0.5">
@@ -262,8 +347,22 @@ export const DispenserControl: React.FC<DispenserControlProps> = ({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-                  {viewMode === 'management' && !isDummy && (
+                  {viewMode === 'management' && (
                     <>
+                    <label className="inline-flex items-center gap-2 px-2 py-2 text-xs font-semibold text-slate-700 cursor-pointer whitespace-nowrap">
+                        <input
+                          type="checkbox"
+                          checked={slot.enabled}
+                          onChange={(e) => {
+                            onUpdateSlot({
+                              ...slot,
+                              enabled: e.target.checked,
+                            });
+                          }}
+                          className="w-4 h-4 rounded border-slate-300 text-sky-700"
+                        />
+                        <span>Enable</span>
+                      </label>
                       {/* Stock level segmented control: Low / Medium / Full */}
                       <div
                         role="group"
@@ -295,6 +394,7 @@ export const DispenserControl: React.FC<DispenserControlProps> = ({
 
                       <button
                         type="button"
+                        disabled={!slot.enabled}
                         onClick={() =>
                           setEditingSlot({
                             ...slot,
@@ -302,7 +402,7 @@ export const DispenserControl: React.FC<DispenserControlProps> = ({
                             days: [...slot.days],
                           })
                         }
-                        className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <Pencil className="w-3.5 h-3.5" aria-hidden="true" />
                         <span>Edit</span>
@@ -311,7 +411,13 @@ export const DispenserControl: React.FC<DispenserControlProps> = ({
                       <button
                         type="button"
                         onClick={() => void onDropPill(slot.slot)}
-                        disabled={!isConnected || isBusy || slot.stockLevel === 'empty'}
+                        disabled={
+                                  !slot.enabled ||
+                                  slot.slot > 4 ||
+                                  !isConnected ||
+                                  isBusy ||
+                                  slot.stockLevel === 'empty'
+                                }
                         className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-sky-700 hover:bg-sky-800 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap shrink-0 cursor-pointer"
                       >
                         <ArrowDownCircle className="w-3.5 h-3.5" aria-hidden="true" />
@@ -452,7 +558,6 @@ export const DispenserControl: React.FC<DispenserControlProps> = ({
                       <button
                         type="button"
                         onClick={() => handleRemoveTimeInModal(time)}
-                        disabled={editingSlot.dispenseTimes.length <= 1}
                         className="p-2 text-slate-500 hover:text-red-700 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
                         aria-label={`Remove time ${time}`}
                       >
@@ -509,18 +614,6 @@ export const DispenserControl: React.FC<DispenserControlProps> = ({
                   })}
                 </div>
               </div>
-
-              <label className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={editingSlot.enabled}
-                  onChange={(e) =>
-                    setEditingSlot({ ...editingSlot, enabled: e.target.checked })
-                  }
-                  className="w-4 h-4 rounded border-slate-300 text-sky-700"
-                />
-                <span>Enable automatic schedule trigger in {clockSnapshot.ianaTimezone}</span>
-              </label>
 
               <p className="text-xs text-slate-500">
                 Schedules saved today begin tomorrow ({tomorrowDateKey}). Daily plans must be synchronized over USB Serial; until then, the ESP32 keeps its previous saved plan. Weekday-specific schedules are app-managed and require USB Serial, a successful Sync 4 Plans, and this page to remain open.
